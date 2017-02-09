@@ -1,0 +1,156 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+
+## Copyright (C) 2017 Takayuki Nagata <tnagata@redhat.com>
+
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+import argparse
+import copy
+
+
+def add_funcset_to_edgelist(edgelist, pfunc, func):
+    edge = '"' + pfunc + '" -> "' + func + '";'
+    if edge not in edgelist:
+        copied = copy.copy(edge)
+        edgelist.append(copied)
+
+
+def write_edgelist(outfile, edgelist):
+    for e in edgelist:
+        outfile.write(e+'\n')
+
+
+def write_dotfile(outfile, edgelist, function=None):
+    outfile.write('digraph callpaths{\n')
+    if function:
+        outfile.write('"' + function + '" [style=filled, fillcolor=red];')
+    write_edgelist(outfile, edgelist)
+    outfile.write('}\n')
+
+
+def find_edges(edgelist, function, walk='left'):
+    found_edges = []
+    pos = 0
+    if walk is 'left':
+        pos = 2
+    for edge in edgelist:
+        if '"' + function + '"' in edge.split()[pos]:
+            found_edges.append(edge)
+            edgelist.remove(edge)
+    ret_edges = found_edges
+    pos = 2
+    if walk is 'left':
+        pos = 0
+    for edge in found_edges:
+        function = edge.split()[pos].replace('"', '').replace(';', '')
+        ret_edges += find_edges(edgelist, function, walk)
+    return ret_edges
+
+
+def select_call_paths(edgelist, function, select_type):
+    copied = copy.copy(edgelist)
+    copied = edgelist
+    found_edges = []
+    if select_type is 'contain':
+        found_edges = find_edges(copied, function, walk='left')
+        found_edges += find_edges(copied, function, walk='right')
+    elif select_type is 'from':
+        found_edges = find_edges(copied, function, walk='right')
+    elif select_type is 'to':
+        found_edges = find_edges(copied, function, walk='left')
+    return found_edges;
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+    parser.add_argument(
+        'inputfile', metavar='FILE',
+        help='input file')
+    parser.add_argument(
+        '-d', '--dir', dest='outputdir',
+        help='output directory')
+    group.add_argument(
+        '-c', '--contain', dest='contain_function',metavar='FUNCTION',
+         help='select call paths conain the function')
+    group.add_argument(
+        '-f', '--from', dest='from_function', metavar='FUNCTION',
+        help='select call paths from the function')
+    group.add_argument('-t', '--to', dest='to_function',metavar='FUNCTION',
+        help='select call paths to the function')
+    args = parser.parse_args()
+
+    processlist = []
+    edgelist_dict = dict()
+    selected_edgelist_dict = dict()
+
+    inputfile = open(args.inputfile, 'r')
+    print 'Loading ' + inputfile.name
+    for line in inputfile:
+        if 'function' in line and 'function' in line.split()[3]:
+            process = line.split()[0]
+            if process in processlist:
+                edgelist = edgelist_dict[process]
+            else:
+                edgelist = []
+                edgelist_dict[process] = edgelist
+                processlist.append(process)
+            func = line.split()[4]
+            pfunc = line.split()[6]
+            add_funcset_to_edgelist(edgelist, pfunc, func)
+    inputfile.close()
+
+    function = None
+    path_select = ''
+
+    if args.contain_function:
+        select_type = 'contain'
+        function = args.contain_function
+    elif args.from_function:
+        select_type = 'from'
+        function = args.from_function
+    elif args.to_function:
+        select_type = 'to'
+        function = args.to_function
+    if function:
+        print 'Finding paths ' + select_type + ' ' + function
+        for process in processlist:
+            selected_edgelist_dict[process] = select_call_paths(
+                edgelist_dict[process], function, select_type)
+
+    for process in processlist:
+        outputfile_name = ('callpaths_'
+            + process.replace('/', '-').replace('<', '').replace('>', '')
+            + '.gv')
+        if function:
+            outputfile_name = ('selected_'
+                + select_type + '_'
+                + function + '_'
+                + outputfile_name)
+            edgelist = selected_edgelist_dict[process]
+        else:
+            edgelist = edgelist_dict[process]
+        if args.outputdir:
+            outputfile_name = args.outputdir + '/' + outputfile_name
+        if len(edgelist) > 0:
+            outputfile = open(outputfile_name, 'w')
+            print 'Writing ' + outputfile.name
+            write_dotfile(outputfile, edgelist, function)
+            outputfile.close()
+
+
+if __name__ == '__main__':
+        main()
