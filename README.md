@@ -46,3 +46,5 @@ optional arguments:
         # for FILE in $(ls *callpaths_*.gv); do echo "Processing $FILE"; dot -Tsvg -O $FILE; done
         
 4. View the saved `.svg` files.
+
+There are some example images in `examples` directory.
