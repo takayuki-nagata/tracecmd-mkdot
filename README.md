@@ -1,6 +1,28 @@
 # tracecmd-mkdot
 A simple python script to generate dot files for vizualization of call graph from function call traces with `trace-cmd` command.
 
+## Usage
+
+~~~
+usage: tracecmd-mkdot [-h] [-d OUTPUTDIR]
+                      [-c FUNCTION | -f FUNCTION | -t FUNCTION]
+                      FILE
+
+positional arguments:
+  FILE                  input file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d OUTPUTDIR, --dir OUTPUTDIR
+                        output directory
+  -c FUNCTION, --contain FUNCTION
+                        select call paths conain the function
+  -f FUNCTION, --from FUNCTION
+                        select call paths from the function
+  -t FUNCTION, --to FUNCTION
+                        select call paths to the function
+~~~
+
 ## Example
 
 1. Record function call traces with `trace-cmd` command.
